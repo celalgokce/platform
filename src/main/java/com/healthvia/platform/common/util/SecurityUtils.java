@@ -1,12 +1,13 @@
 // common/util/SecurityUtils.java
 package com.healthvia.platform.common.util;
 
-import com.healthvia.platform.auth.security.UserPrincipal;
-import com.healthvia.platform.common.enums.UserRole;
+import java.util.Optional;
+
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import java.util.Optional;
+import com.healthvia.platform.auth.security.UserPrincipal;
+import com.healthvia.platform.common.enums.UserRole;
 
 public class SecurityUtils {
     
