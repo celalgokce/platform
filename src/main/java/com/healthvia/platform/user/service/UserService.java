@@ -7,21 +7,13 @@ import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import com.healthvia.platform.common.enums.Language;
 import com.healthvia.platform.common.enums.UserRole;
 import com.healthvia.platform.common.enums.UserStatus;
 import com.healthvia.platform.user.entity.User;
 
 /**
- * Ana kullanıcı yönetimi servisi - SADECE CORE İŞLEMLER
- * 
- * Bu servis sadece temel CRUD işlemlerini ve authentication'ı handle eder.
- * Diğer özelleşmiş işlemler için ayrı servisler kullanılır:
- * 
- * - UserProfileService: Profil yönetimi
- * - UserSecurityService: Güvenlik işlemleri
- * - UserConsentService: GDPR & onay yönetimi
- * - UserStatisticsService: İstatistik & analytics
- * - UserBulkService: Toplu işlemler
+ * Ana kullanıcı yönetimi servisi - TEMEL İŞLEMLER
  */
 public interface UserService {
 
@@ -80,6 +72,23 @@ public interface UserService {
      * Telefon doğrula
      */
     void verifyPhone(String userId);
+
+    // === PROFILE MANAGEMENT - HATALARI ÇÖZEN METHODLAR ===
+    
+    /**
+     * Bildirim tercihlerini güncelle
+     */
+    User updateNotificationPreferences(String userId, List<String> preferences);
+    
+    /**
+     * Avatar güncelle
+     */
+    User updateAvatar(String userId, String avatarUrl);
+    
+    /**
+     * Dil tercihi güncelle
+     */
+    User updateLanguagePreference(String userId, Language language);
 
     // === SEARCH & FILTER METHODS ===
     

@@ -231,4 +231,7 @@ public class User extends BaseEntity {
             return displayName;
         }
     }
+    public void setProfileCompletionRate(Integer profileCompletionRate) {
+    this.profileCompletionRate = profileCompletionRate;
+}
 }

@@ -1,11 +1,13 @@
 // user/entity/Admin.java
-package com.healthvia.platform.user.entity;
+package com.healthvia.platform.admin.entity;
 
 import java.time.LocalDateTime;
 import java.util.Set;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
+
+import com.healthvia.platform.user.entity.User;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

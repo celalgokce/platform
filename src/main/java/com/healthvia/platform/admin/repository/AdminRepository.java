@@ -1,5 +1,5 @@
 // user/repository/AdminRepository.java
-package com.healthvia.platform.user.repository;
+package com.healthvia.platform.admin.repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -11,7 +11,7 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.stereotype.Repository;
 
-import com.healthvia.platform.user.entity.Admin;
+import com.healthvia.platform.admin.entity.Admin;
 
 @Repository
 public interface AdminRepository extends MongoRepository<Admin, String> {

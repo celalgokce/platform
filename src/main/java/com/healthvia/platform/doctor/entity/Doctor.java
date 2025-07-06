@@ -1,5 +1,5 @@
 // user/entity/Doctor.java
-package com.healthvia.platform.user.entity;
+package com.healthvia.platform.doctor.entity;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -10,6 +10,8 @@ import java.util.Set;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
+
+import com.healthvia.platform.user.entity.User;
 
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;

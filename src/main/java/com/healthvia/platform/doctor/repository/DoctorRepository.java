@@ -1,5 +1,5 @@
 // user/repository/DoctorRepository.java
-package com.healthvia.platform.user.repository;
+package com.healthvia.platform.doctor.repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -13,7 +13,7 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.stereotype.Repository;
 
-import com.healthvia.platform.user.entity.Doctor;
+import com.healthvia.platform.doctor.entity.Doctor;
 
 @Repository
 public interface DoctorRepository extends MongoRepository<Doctor, String> {
