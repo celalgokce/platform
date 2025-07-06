@@ -1,18 +1,28 @@
 // user/service/UserService.java
 package com.healthvia.platform.user.service;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-import com.healthvia.platform.common.enums.Language;
 import com.healthvia.platform.common.enums.UserRole;
 import com.healthvia.platform.common.enums.UserStatus;
 import com.healthvia.platform.user.entity.User;
 
+/**
+ * Ana kullanıcı yönetimi servisi - SADECE CORE İŞLEMLER
+ * 
+ * Bu servis sadece temel CRUD işlemlerini ve authentication'ı handle eder.
+ * Diğer özelleşmiş işlemler için ayrı servisler kullanılır:
+ * 
+ * - UserProfileService: Profil yönetimi
+ * - UserSecurityService: Güvenlik işlemleri
+ * - UserConsentService: GDPR & onay yönetimi
+ * - UserStatisticsService: İstatistik & analytics
+ * - UserBulkService: Toplu işlemler
+ */
 public interface UserService {
 
     // === BASIC CRUD OPERATIONS ===
@@ -42,7 +52,7 @@ public interface UserService {
      */
     Page<User> findAll(Pageable pageable);
 
-    // === AUTHENTICATION METHODS ===
+    // === AUTHENTICATION CORE METHODS ===
     
     /**
      * Email ile kullanıcı bul - Authentication için
@@ -53,26 +63,6 @@ public interface UserService {
      * Email veya telefon ile kullanıcı bul
      */
     Optional<User> findByEmailOrPhone(String emailOrPhone);
-    
-    /**
-     * Kullanıcı şifre doğrulama
-     */
-    boolean validatePassword(String userId, String rawPassword);
-    
-    /**
-     * Şifre değiştir
-     */
-    void changePassword(String userId, String oldPassword, String newPassword);
-    
-    /**
-     * Şifre sıfırlama
-     */
-    void resetPassword(String email);
-    
-    /**
-     * Son giriş tarihini güncelle
-     */
-    void updateLastLogin(String userId);
 
     // === ACCOUNT MANAGEMENT ===
     
@@ -90,48 +80,6 @@ public interface UserService {
      * Telefon doğrula
      */
     void verifyPhone(String userId);
-    
-    /**
-     * Hesap kilitle
-     */
-    void lockAccount(String userId, int durationMinutes, String reason);
-    
-    /**
-     * Hesap kilidini aç
-     */
-    void unlockAccount(String userId);
-    
-    /**
-     * Başarısız giriş denemesi kaydet
-     */
-    void recordFailedLoginAttempt(String userId);
-    
-    /**
-     * Başarısız giriş denemelerini sıfırla
-     */
-    void resetFailedLoginAttempts(String userId);
-
-    // === PROFILE MANAGEMENT ===
-    
-    /**
-     * Profil tamamlanma oranını hesapla ve güncelle
-     */
-    int calculateAndUpdateProfileCompletion(String userId);
-    
-    /**
-     * Avatar güncelle
-     */
-    User updateAvatar(String userId, String avatarUrl);
-    
-    /**
-     * Dil tercihi güncelle
-     */
-    User updateLanguagePreference(String userId, Language language);
-    
-    /**
-     * Bildirim tercihlerini güncelle
-     */
-    User updateNotificationPreferences(String userId, List<String> preferences);
 
     // === SEARCH & FILTER METHODS ===
     
@@ -186,87 +134,6 @@ public interface UserService {
      * Telefon benzersizlik kontrolü (güncelleme için)
      */
     boolean isPhoneAvailableForUpdate(String userId, String phone);
-    
-    /**
-     * Şifre kuvvetlilik kontrolü
-     */
-    boolean isPasswordStrong(String password);
-
-    // === GDPR & CONSENT METHODS ===
-    
-    /**
-     * GDPR onayı güncelle
-     */
-    void updateGdprConsent(String userId, boolean consent);
-    
-    /**
-     * Veri işleme onayı güncelle
-     */
-    void updateDataProcessingConsent(String userId, boolean consent);
-    
-    /**
-     * Marketing onayı güncelle
-     */
-    void updateMarketingConsent(String userId, boolean consent);
-    
-    /**
-     * Veri paylaşım onayı güncelle
-     */
-    void updateDataSharingConsent(String userId, boolean consent);
-    
-    /**
-     * GDPR onayı verilmemiş kullanıcılar
-     */
-    List<User> findUsersWithoutGdprConsent();
-
-    // === ANALYTICS & STATISTICS ===
-    
-    /**
-     * Role göre kullanıcı sayısı
-     */
-    long countByRole(UserRole role);
-    
-    /**
-     * Status göre kullanıcı sayısı
-     */
-    long countByStatus(UserStatus status);
-    
-    /**
-     * Email doğrulanmamış kullanıcı sayısı
-     */
-    long countUnverifiedEmails();
-    
-    /**
-     * Belirli tarih aralığında kayıt olan kullanıcı sayısı
-     */
-    long countUsersRegisteredBetween(LocalDateTime startDate, LocalDateTime endDate);
-    
-    /**
-     * Aktif olmayan kullanıcılar (son giriş tarihi eski)
-     */
-    List<User> findInactiveUsers(LocalDateTime lastLoginBefore);
-    
-    /**
-     * Hiç giriş yapmamış kullanıcılar
-     */
-    List<User> findNeverLoggedInUsers(LocalDateTime createdBefore);
-
-    // === BULK OPERATIONS ===
-    
-    /**
-     * Toplu kullanıcı oluştur
-     */
-    List<User> createUsers(List<User> users);
-    
-    /**
-     * Toplu durum güncelleme
-     */
-    void updateUsersStatus(List<String> userIds, UserStatus status, String updatedBy);
-    
-    /**
-     * Toplu silme
-     */
-    void deleteUsers(List<String> userIds, String deletedBy);
 
     // === ADMIN OPERATIONS ===
     
@@ -295,44 +162,10 @@ public interface UserService {
      */
     Page<User> findAllIncludingDeleted(Pageable pageable);
 
-    // === NOTIFICATION METHODS ===
-    
-    /**
-     * Marketing onayı vermiş kullanıcılar
-     */
-    List<User> findUsersWithMarketingConsent();
-    
-    /**
-     * Dil tercihi göre kullanıcılar
-     */
-    List<User> findUsersByLanguage(Language language);
-    
-    /**
-     * Belirli bildirim tercihine sahip kullanıcılar
-     */
-    List<User> findUsersByNotificationPreference(String preference);
-
-    // === SECURITY METHODS ===
-    
-    /**
-     * Kilitli hesapları bul
-     */
-    List<User> findLockedAccounts();
-    
-    /**
-     * Başarısız girişi fazla olan kullanıcılar
-     */
-    List<User> findUsersWithFailedAttempts(int minFailedAttempts);
-    
-    /**
-     * Güvenlik olayı kaydet
-     */
-    void logSecurityEvent(String userId, String eventType, String description);
-
     // === MAINTENANCE METHODS ===
     
     /**
-     * Hesap kilitleri temizle (süresi dolmuş)
+     * Süresi dolmuş hesap kilitlerini temizle
      */
     void cleanupExpiredAccountLocks();
     
@@ -340,9 +173,21 @@ public interface UserService {
      * Eski doğrulama token'ları temizle
      */
     void cleanupExpiredVerificationTokens();
+
+    // === HELPER METHODS ===
     
     /**
-     * Profil tamamlanma oranlarını yeniden hesapla
+     * Kullanıcı var mı kontrolü
      */
-    void recalculateAllProfileCompletions();
+    boolean existsById(String userId);
+    
+    /**
+     * Kullanıcı aktif mi kontrolü
+     */
+    boolean isUserActive(String userId);
+    
+    /**
+     * Kullanıcı silindi mi kontrolü
+     */
+    boolean isUserDeleted(String userId);
 }
