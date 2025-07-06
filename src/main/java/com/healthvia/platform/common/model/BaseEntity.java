@@ -11,9 +11,15 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.mapping.Field;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 @Data
+@SuperBuilder
+@NoArgsConstructor
+@AllArgsConstructor
 public abstract class BaseEntity {
     
     @Id
@@ -51,5 +57,13 @@ public abstract class BaseEntity {
         this.deleted = true;
         this.deletedAt = LocalDateTime.now();
         this.deletedBy = deletedBy;
+    }
+    
+    public boolean isNew() {
+        return id == null;
+    }
+    
+    public boolean isDeleted() {
+        return deleted;
     }
 }
