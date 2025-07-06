@@ -57,5 +57,6 @@ public class RegisterRequest {
     // Patient için ek alanlar
     private String tcKimlikNo;
     private String passportNo;
+    @NotBlank(message = "Doğum yeri boş olamaz")
     private String birthPlace;
 }

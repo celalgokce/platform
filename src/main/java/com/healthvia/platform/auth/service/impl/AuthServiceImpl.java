@@ -1,16 +1,14 @@
-// auth/service/impl/AuthServiceImpl.java
 package com.healthvia.platform.auth.service.impl;
 
 import java.time.LocalDateTime;
 
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.healthvia.platform.admin.entity.Admin;
+import com.healthvia.platform.admin.repository.AdminRepository;
 import com.healthvia.platform.auth.dto.AuthResponse;
 import com.healthvia.platform.auth.dto.LoginRequest;
 import com.healthvia.platform.auth.dto.RegisterAdminRequest;
@@ -24,9 +22,11 @@ import com.healthvia.platform.common.enums.UserRole;
 import com.healthvia.platform.common.enums.UserStatus;
 import com.healthvia.platform.common.exception.BusinessException;
 import com.healthvia.platform.doctor.entity.Doctor;
+import com.healthvia.platform.doctor.repository.DoctorRepository;
 import com.healthvia.platform.user.entity.Patient;
 import com.healthvia.platform.user.entity.User;
-import com.healthvia.platform.user.service.UserService;
+import com.healthvia.platform.user.repository.PatientRepository;
+import com.healthvia.platform.user.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,17 +37,19 @@ import lombok.extern.slf4j.Slf4j;
 @Transactional
 public class AuthServiceImpl implements AuthService {
 
-    private final UserService userService;
+    private final UserRepository userRepository;
+    private final PatientRepository patientRepository;
+    private final DoctorRepository doctorRepository;
+    private final AdminRepository adminRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
     private final AuthenticationManager authenticationManager;
 
-    // === ROLE-SPECIFIC REGISTRATIONS ===
-    
     @Override
     public AuthResponse registerPatient(RegisterRequest request) {
         log.debug("Registering patient with email: {}", request.getEmail());
         
+        // Validate common fields
         validateCommonFields(request);
         
         // Create Patient entity
@@ -56,7 +58,7 @@ public class AuthServiceImpl implements AuthService {
             .lastName(request.getLastName())
             .email(request.getEmail())
             .phone(request.getPhone())
-            .password(request.getPassword())
+            .password(passwordEncoder.encode(request.getPassword())) // Encode password
             .role(UserRole.PATIENT)
             .status(UserStatus.PENDING_VERIFICATION)
             .gender(request.getGender())
@@ -70,11 +72,16 @@ public class AuthServiceImpl implements AuthService {
             .tcKimlikNo(request.getTcKimlikNo())
             .passportNo(request.getPassportNo())
             .birthPlace(request.getBirthPlace())
+            .failedLoginAttempts(0)
+            .profileCompletionRate(30)
             .build();
         
-        User savedUser = userService.createUser(patient);
+        // Save directly with PatientRepository
+        Patient savedPatient = patientRepository.save(patient);
+        log.info("Patient created successfully with ID: {}", savedPatient.getId());
         
-        AuthResponse response = createAuthResponse(savedUser);
+        // Create auth response
+        AuthResponse response = createAuthResponse(savedPatient);
         response.setMessage("Email doğrulaması gerekli");
         response.setRequiresAction(true);
         
@@ -95,7 +102,7 @@ public class AuthServiceImpl implements AuthService {
             .lastName(request.getLastName())
             .email(request.getEmail())
             .phone(request.getPhone())
-            .password(request.getPassword())
+            .password(passwordEncoder.encode(request.getPassword()))
             .role(UserRole.DOCTOR)
             .status(UserStatus.PENDING_VERIFICATION)
             .gender(request.getGender())
@@ -106,6 +113,8 @@ public class AuthServiceImpl implements AuthService {
             .phoneVerified(false)
             .gdprConsent(request.getGdprConsent())
             .gdprConsentDate(LocalDateTime.now())
+            .failedLoginAttempts(0)
+            .profileCompletionRate(40)
             
             // Doctor specific fields
             .diplomaNumber(request.getDiplomaNumber())
@@ -119,12 +128,13 @@ public class AuthServiceImpl implements AuthService {
             .currentHospital(request.getCurrentHospital())
             .currentClinic(request.getCurrentClinic())
             .verificationStatus(Doctor.VerificationStatus.PENDING)
-            .isAcceptingNewPatients(false) // Başlangıçta kapalı
+            .isAcceptingNewPatients(false)
             .build();
         
-        User savedUser = userService.createUser(doctor);
+        Doctor savedDoctor = doctorRepository.save(doctor);
+        log.info("Doctor created successfully with ID: {}", savedDoctor.getId());
         
-        AuthResponse response = createAuthResponse(savedUser);
+        AuthResponse response = createAuthResponse(savedDoctor);
         response.setMessage("Hesabınız inceleme altındadır");
         response.setRequiresAction(true);
         
@@ -145,17 +155,19 @@ public class AuthServiceImpl implements AuthService {
             .lastName(request.getLastName())
             .email(request.getEmail())
             .phone(request.getPhone())
-            .password(request.getPassword())
+            .password(passwordEncoder.encode(request.getPassword()))
             .role(UserRole.ADMIN)
-            .status(UserStatus.ACTIVE) // Admin'ler direkt aktif
+            .status(UserStatus.ACTIVE)
             .gender(request.getGender())
             .birthDate(request.getBirthDate())
             .province(request.getProvince())
             .district(request.getDistrict())
-            .emailVerified(true) // Admin'ler için email doğrulaması atlanabilir
+            .emailVerified(true)
             .phoneVerified(false)
             .gdprConsent(request.getGdprConsent())
             .gdprConsentDate(LocalDateTime.now())
+            .failedLoginAttempts(0)
+            .profileCompletionRate(50)
             
             // Admin specific fields
             .department(request.getDepartment())
@@ -172,26 +184,25 @@ public class AuthServiceImpl implements AuthService {
             .canManageSystem(request.getCanManageSystem() != null ? request.getCanManageSystem() : false)
             .build();
         
-        User savedUser = userService.createUser(admin);
+        Admin savedAdmin = adminRepository.save(admin);
+        log.info("Admin created successfully with ID: {}", savedAdmin.getId());
         
-        AuthResponse response = createAuthResponse(savedUser);
+        AuthResponse response = createAuthResponse(savedAdmin);
         response.setMessage("Admin hesabı oluşturuldu");
         response.setRequiresAction(false);
         
         return response;
     }
 
-    // === AUTHENTICATION ===
-    
     @Override
     public AuthResponse login(LoginRequest request) {
         log.debug("Login attempt for username: {}", request.getUsername());
         
-        // User bilgilerini al (authentication'dan önce kontroller için)
-        User user = userService.findByEmailOrPhone(request.getUsername())
+        // Find user
+        User user = userRepository.findByEmailOrPhone(request.getUsername())
             .orElseThrow(() -> new BusinessException(ErrorCodes.INVALID_CREDENTIALS));
         
-        // Hesap kontrolü
+        // Check account status
         if (user.isAccountLocked()) {
             throw new BusinessException(ErrorCodes.ACCOUNT_LOCKED);
         }
@@ -200,24 +211,16 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCodes.EMAIL_NOT_VERIFIED);
         }
         
-        try {
-            // Authentication
-            Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                    request.getUsername(),
-                    request.getPassword()
-                )
-            );
-        } catch (Exception e) {
-            // Başarısız giriş denemesi
+        // Verify password
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             user.incrementFailedLoginAttempts();
-            userService.updateUser(user.getId(), user);
+            userRepository.save(user);
             throw new BusinessException(ErrorCodes.INVALID_CREDENTIALS);
         }
         
-        // Son giriş tarihini güncelle
+        // Update last login
         user.updateLastLogin();
-        userService.updateUser(user.getId(), user);
+        userRepository.save(user);
         
         AuthResponse response = createAuthResponse(user);
         response.setMessage("Giriş başarılı");
@@ -228,64 +231,52 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public AuthResponse refreshToken(String refreshToken) {
-        // Token geçerliliğini kontrol et
         if (!tokenProvider.validateToken(refreshToken)) {
             throw new BusinessException(ErrorCodes.TOKEN_INVALID);
         }
         
-        // User ID'yi al
         String userId = tokenProvider.getUserIdFromToken(refreshToken);
         
-        // User'ı bul
-        User user = userService.findById(userId)
+        User user = userRepository.findById(userId)
             .orElseThrow(() -> new BusinessException(ErrorCodes.USER_NOT_FOUND));
         
         return createAuthResponse(user);
     }
 
-    // === EMAIL & PASSWORD ===
-    
     @Override
     public void verifyEmail(String token) {
-        // Email doğrulama implementasyonu
-        // Bu kısım email service ile entegre edilecek
         throw new UnsupportedOperationException("Email verification will be implemented with email service");
     }
 
     @Override
     public void forgotPassword(String email) {
-        // Kullanıcı var mı kontrol et
-        User user = userService.findByEmail(email)
+        User user = userRepository.findByEmail(email)
             .orElseThrow(() -> new BusinessException(ErrorCodes.USER_NOT_FOUND));
         
-        // Şifre sıfırlama token'ı oluştur ve email gönder
-        // Bu kısım email service ile entegre edilecek
         log.info("Password reset requested for user: {}", user.getId());
         throw new UnsupportedOperationException("Password reset will be implemented with email service");
     }
 
     @Override
     public void resetPassword(String token, String newPassword) {
-        // Token doğrula ve şifreyi güncelle
-        // Bu kısım email service ile entegre edilecek
         throw new UnsupportedOperationException("Password reset will be implemented with email service");
     }
 
     // === PRIVATE HELPER METHODS ===
 
     private void validateCommonFields(RegisterRequest request) {
-        // Email benzersizlik kontrolü
-        if (!userService.isEmailAvailable(request.getEmail())) {
+        // Email uniqueness check
+        if (userRepository.existsByEmailAndDeletedFalse(request.getEmail())) {
             throw new BusinessException(ErrorCodes.USER_ALREADY_EXISTS, "Email already exists: " + request.getEmail());
         }
         
-        // Telefon benzersizlik kontrolü
-        if (!userService.isPhoneAvailable(request.getPhone())) {
+        // Phone uniqueness check
+        if (userRepository.existsByPhoneAndDeletedFalse(request.getPhone())) {
             throw new BusinessException(ErrorCodes.USER_ALREADY_EXISTS, "Phone already exists: " + request.getPhone());
         }
         
-        // GDPR consent kontrolü
-        if (!request.getGdprConsent()) {
+        // GDPR consent check
+        if (!Boolean.TRUE.equals(request.getGdprConsent())) {
             throw new BusinessException(ErrorCodes.INVALID_CREDENTIALS, "GDPR consent is required");
         }
     }
@@ -303,7 +294,14 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCodes.INVALID_CREDENTIALS, "Primary specialty is required");
         }
         
-        // TODO: Doctor service'ten diploma ve license benzersizlik kontrolü
+        // Check uniqueness
+        if (doctorRepository.existsByDiplomaNumberAndDeletedFalse(request.getDiplomaNumber())) {
+            throw new BusinessException(ErrorCodes.USER_ALREADY_EXISTS, "Diploma number already exists");
+        }
+        
+        if (doctorRepository.existsByMedicalLicenseNumberAndDeletedFalse(request.getMedicalLicenseNumber())) {
+            throw new BusinessException(ErrorCodes.USER_ALREADY_EXISTS, "Medical license number already exists");
+        }
     }
 
     private void validateAdminFields(RegisterAdminRequest request) {
@@ -315,14 +313,17 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCodes.INVALID_CREDENTIALS, "Employee ID is required");
         }
         
-        // TODO: Admin service'ten employee ID benzersizlik kontrolü
+        // Check uniqueness
+        if (adminRepository.existsByEmployeeIdAndDeletedFalse(request.getEmployeeId())) {
+            throw new BusinessException(ErrorCodes.USER_ALREADY_EXISTS, "Employee ID already exists");
+        }
     }
 
     private AuthResponse createAuthResponse(User user) {
-        // UserPrincipal oluştur
+        // Create UserPrincipal
         UserPrincipal userPrincipal = createUserPrincipal(user);
         
-        // Token'ları oluştur
+        // Generate tokens
         String accessToken = tokenProvider.generateAccessToken(userPrincipal);
         String refreshToken = tokenProvider.generateRefreshToken(user.getId());
         
@@ -332,7 +333,7 @@ public class AuthServiceImpl implements AuthService {
             .accessToken(accessToken)
             .refreshToken(refreshToken)
             .tokenType("Bearer")
-            .expiresIn(900000) // 15 dakika
+            .expiresIn(900000) // 15 minutes
             .userId(user.getId())
             .email(user.getEmail())
             .firstName(user.getFirstName())

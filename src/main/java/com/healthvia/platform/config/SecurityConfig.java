@@ -38,11 +38,15 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> 
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**").permitAll()
+.authorizeHttpRequests(auth -> auth
+                .requestMatchers("/api/v1/auth/**").permitAll()  // v1 path'i ekledik
+                .requestMatchers("/api/auth/**").permitAll()     // Eski path uyumluluk için
+                .requestMatchers("/api/v1/public/**").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
-                .requestMatchers("/api/test/health").permitAll()  // Sadece health endpoint public
-                .anyRequest().authenticated()  // Diğer her şey authentication gerektirir
+                .requestMatchers("/api/test/**").permitAll()     // Tüm test endpoint'leri
+                .requestMatchers("/error").permitAll()           // Error endpoint
+                .requestMatchers("/").permitAll()                // Root endpoint
+                .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         
