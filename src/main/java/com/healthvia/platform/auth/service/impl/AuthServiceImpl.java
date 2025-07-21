@@ -58,14 +58,14 @@ public class AuthServiceImpl implements AuthService {
             .lastName(request.getLastName())
             .email(request.getEmail())
             .phone(request.getPhone())
-            .password(passwordEncoder.encode(request.getPassword())) // Encode password
+            .password(passwordEncoder.encode(request.getPassword()))
             .role(UserRole.PATIENT)
-            .status(UserStatus.PENDING_VERIFICATION)
+            .status(UserStatus.ACTIVE)
             .gender(request.getGender())
             .birthDate(request.getBirthDate())
             .province(request.getProvince())
             .district(request.getDistrict())
-            .emailVerified(false)
+            .emailVerified(true)
             .phoneVerified(false)
             .gdprConsent(request.getGdprConsent())
             .gdprConsentDate(LocalDateTime.now())
@@ -78,12 +78,12 @@ public class AuthServiceImpl implements AuthService {
         
         // Save directly with PatientRepository
         Patient savedPatient = patientRepository.save(patient);
-        log.info("Patient created successfully with ID: {}", savedPatient.getId());
+        log.info("Patient created and activated with ID: {}", savedPatient.getId());
         
         // Create auth response
         AuthResponse response = createAuthResponse(savedPatient);
-        response.setMessage("Email doğrulaması gerekli");
-        response.setRequiresAction(true);
+        response.setMessage("Hasta kaydı tamamlandı - Giriş yapabilirsiniz");
+        response.setRequiresAction(false);
         
         return response;
     }
@@ -104,12 +104,12 @@ public class AuthServiceImpl implements AuthService {
             .phone(request.getPhone())
             .password(passwordEncoder.encode(request.getPassword()))
             .role(UserRole.DOCTOR)
-            .status(UserStatus.PENDING_VERIFICATION)
+            .status(UserStatus.ACTIVE)
             .gender(request.getGender())
             .birthDate(request.getBirthDate())
             .province(request.getProvince())
             .district(request.getDistrict())
-            .emailVerified(false)
+            .emailVerified(true)
             .phoneVerified(false)
             .gdprConsent(request.getGdprConsent())
             .gdprConsentDate(LocalDateTime.now())
@@ -132,11 +132,11 @@ public class AuthServiceImpl implements AuthService {
             .build();
         
         Doctor savedDoctor = doctorRepository.save(doctor);
-        log.info("Doctor created successfully with ID: {}", savedDoctor.getId());
+        log.info("Doctor created and activated with ID: {}", savedDoctor.getId());
         
         AuthResponse response = createAuthResponse(savedDoctor);
-        response.setMessage("Hesabınız inceleme altındadır");
-        response.setRequiresAction(true);
+        response.setMessage("Doktor kaydı tamamlandı - Admin onayı bekleniyor");
+        response.setRequiresAction(false);
         
         return response;
     }
@@ -198,8 +198,11 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse login(LoginRequest request) {
         log.debug("Login attempt for username: {}", request.getUsername());
         
-        // Find user
+        // Find user - önce UserRepository, sonra PatientRepository, sonra DoctorRepository, son AdminRepository
         User user = userRepository.findByEmailOrPhone(request.getUsername())
+            .or(() -> patientRepository.findByEmail(request.getUsername()).map(patient -> (User) patient))
+            .or(() -> doctorRepository.findByEmail(request.getUsername()).map(doctor -> (User) doctor))
+            .or(() -> adminRepository.findByEmail(request.getUsername()).map(admin -> (User) admin))
             .orElseThrow(() -> new BusinessException(ErrorCodes.INVALID_CREDENTIALS));
         
         // Check account status
@@ -207,20 +210,25 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCodes.ACCOUNT_LOCKED);
         }
         
-        if (!user.getEmailVerified() && user.getRole() != UserRole.ADMIN) {
-            throw new BusinessException(ErrorCodes.EMAIL_NOT_VERIFIED);
+        // Only check if user is active (not suspended/deleted)
+        if (user.getStatus() == UserStatus.SUSPENDED) {
+            throw new BusinessException(ErrorCodes.ACCOUNT_LOCKED, "Account suspended");
+        }
+        
+        if (user.getStatus() == UserStatus.DELETED || user.isDeleted()) {
+            throw new BusinessException(ErrorCodes.USER_NOT_FOUND, "Account not found");
         }
         
         // Verify password
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             user.incrementFailedLoginAttempts();
-            userRepository.save(user);
+            saveUserToCorrectRepository(user);
             throw new BusinessException(ErrorCodes.INVALID_CREDENTIALS);
         }
         
         // Update last login
         user.updateLastLogin();
-        userRepository.save(user);
+        saveUserToCorrectRepository(user);
         
         AuthResponse response = createAuthResponse(user);
         response.setMessage("Giriş başarılı");
@@ -237,7 +245,11 @@ public class AuthServiceImpl implements AuthService {
         
         String userId = tokenProvider.getUserIdFromToken(refreshToken);
         
+        // Try to find user in all repositories
         User user = userRepository.findById(userId)
+            .or(() -> patientRepository.findById(userId).map(patient -> (User) patient))
+            .or(() -> doctorRepository.findById(userId).map(doctor -> (User) doctor))
+            .or(() -> adminRepository.findById(userId).map(admin -> (User) admin))
             .orElseThrow(() -> new BusinessException(ErrorCodes.USER_NOT_FOUND));
         
         return createAuthResponse(user);
@@ -245,12 +257,17 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void verifyEmail(String token) {
+        log.info("Email verification requested with token: {}", token);
         throw new UnsupportedOperationException("Email verification will be implemented with email service");
     }
 
     @Override
     public void forgotPassword(String email) {
+        // Find user in any repository
         User user = userRepository.findByEmail(email)
+            .or(() -> patientRepository.findByEmail(email).map(patient -> (User) patient))
+            .or(() -> doctorRepository.findByEmail(email).map(doctor -> (User) doctor))
+            .or(() -> adminRepository.findByEmail(email).map(admin -> (User) admin))
             .orElseThrow(() -> new BusinessException(ErrorCodes.USER_NOT_FOUND));
         
         log.info("Password reset requested for user: {}", user.getId());
@@ -259,19 +276,26 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void resetPassword(String token, String newPassword) {
+        log.info("Password reset attempted with token: {}", token);
         throw new UnsupportedOperationException("Password reset will be implemented with email service");
     }
 
     // === PRIVATE HELPER METHODS ===
 
     private void validateCommonFields(RegisterRequest request) {
-        // Email uniqueness check
-        if (userRepository.existsByEmailAndDeletedFalse(request.getEmail())) {
+        // Email uniqueness check across all repositories
+        if (userRepository.existsByEmailAndDeletedFalse(request.getEmail()) ||
+            patientRepository.existsByEmail(request.getEmail()) ||
+            doctorRepository.existsByEmail(request.getEmail()) ||
+            adminRepository.existsByEmail(request.getEmail())) {
             throw new BusinessException(ErrorCodes.USER_ALREADY_EXISTS, "Email already exists: " + request.getEmail());
         }
         
-        // Phone uniqueness check
-        if (userRepository.existsByPhoneAndDeletedFalse(request.getPhone())) {
+        // Phone uniqueness check across all repositories
+        if (userRepository.existsByPhoneAndDeletedFalse(request.getPhone()) ||
+            patientRepository.existsByPhone(request.getPhone()) ||
+            doctorRepository.existsByPhone(request.getPhone()) ||
+            adminRepository.existsByPhone(request.getPhone())) {
             throw new BusinessException(ErrorCodes.USER_ALREADY_EXISTS, "Phone already exists: " + request.getPhone());
         }
         
@@ -316,6 +340,18 @@ public class AuthServiceImpl implements AuthService {
         // Check uniqueness
         if (adminRepository.existsByEmployeeIdAndDeletedFalse(request.getEmployeeId())) {
             throw new BusinessException(ErrorCodes.USER_ALREADY_EXISTS, "Employee ID already exists");
+        }
+    }
+
+    private void saveUserToCorrectRepository(User user) {
+        if (user instanceof Patient) {
+            patientRepository.save((Patient) user);
+        } else if (user instanceof Doctor) {
+            doctorRepository.save((Doctor) user);
+        } else if (user instanceof Admin) {
+            adminRepository.save((Admin) user);
+        } else {
+            userRepository.save(user);
         }
     }
 

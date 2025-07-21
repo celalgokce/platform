@@ -19,7 +19,11 @@ import com.healthvia.platform.doctor.entity.Doctor;
 public interface DoctorRepository extends MongoRepository<Doctor, String> {
 
     // === PROFESSIONAL IDENTITY QUERIES ===
-    
+    Optional<Doctor> findByEmail(String email);
+
+    Optional<Doctor> findByEmailAndDeletedFalse(String email);
+    boolean existsByEmail(String email);
+    boolean existsByPhone(String phone);
     /**
      * Diploma numarası ile doktor bulma
      */
@@ -310,6 +314,9 @@ public interface DoctorRepository extends MongoRepository<Doctor, String> {
         Pageable pageable
     );
 
+
+
+
     // === EXISTENCE CHECKS ===
     
     /**
@@ -416,4 +423,9 @@ public interface DoctorRepository extends MongoRepository<Doctor, String> {
         String language, 
         Pageable pageable
     );
+
+
+
+
+    
 }

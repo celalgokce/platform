@@ -28,6 +28,12 @@ public interface PatientRepository extends MongoRepository<Patient, String> {
      * TC Kimlik No ile aktif hasta bulma
      */
     Optional<Patient> findByTcKimlikNoAndDeletedFalse(String tcKimlikNo);
+
+    Optional<Patient> findByEmail(String email);
+
+    Optional<Patient> findByEmailAndDeletedFalse(String email);
+
+
     
     /**
      * Pasaport No ile hasta bulma
@@ -234,6 +240,12 @@ public interface PatientRepository extends MongoRepository<Patient, String> {
      * Pasaport No varlık kontrolü
      */
     boolean existsByPassportNoAndDeletedFalse(String passportNo);
+
+
+    boolean existsByEmail(String email);
+
+    boolean existsByPhone(String phone);
+
 
     // === COUNT QUERIES ===
     

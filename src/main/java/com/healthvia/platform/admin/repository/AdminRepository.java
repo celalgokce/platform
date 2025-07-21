@@ -326,4 +326,13 @@ public interface AdminRepository extends MongoRepository<Admin, String> {
      */
     @Query("{ '_id': { $in: ?0 }, 'deleted': false }")
     List<Admin> findDepartmentLeaders(List<String> supervisorIds);
+
+    Optional<Admin> findByEmail(String email);
+
+    Optional<Admin> findByEmailAndDeletedFalse(String email);
+
+    boolean existsByEmail(String email);
+    boolean existsByPhone(String phone);
+
+
 }

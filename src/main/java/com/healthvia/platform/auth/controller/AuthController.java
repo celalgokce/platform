@@ -1,11 +1,20 @@
-
 package com.healthvia.platform.auth.controller;
 
+import java.time.LocalDateTime;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.WebRequest;
 
 import com.healthvia.platform.auth.dto.AuthResponse;
 import com.healthvia.platform.auth.dto.LoginRequest;
@@ -14,6 +23,7 @@ import com.healthvia.platform.auth.dto.RegisterDoctorRequest;
 import com.healthvia.platform.auth.dto.RegisterRequest;
 import com.healthvia.platform.auth.service.AuthService;
 import com.healthvia.platform.common.dto.ApiResponse;
+import com.healthvia.platform.common.dto.ErrorResponse;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +34,7 @@ import lombok.RequiredArgsConstructor;
 public class AuthController {
 
     private final AuthService authService;
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     // === ROLE-SPECIFIC REGISTRATIONS ===
     
@@ -87,5 +98,34 @@ public class AuthController {
             @RequestParam String newPassword) {
         authService.resetPassword(token, newPassword);
         return ApiResponse.success("Şifre başarıyla güncellendi");
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHttpMessageNotReadableException(
+            HttpMessageNotReadableException ex, WebRequest request) {
+        log.error("JSON parse error: {}", ex.getMessage());
+        ErrorResponse error = ErrorResponse.builder()
+            .code("INVALID_JSON")
+            .message("Geçersiz JSON formatı veya veri tipi hatası")
+            .timestamp(LocalDateTime.now())
+            .path(request.getDescription(false).replace("uri=", ""))
+            .build();
+        return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST)
+            .body(ApiResponse.error(error));
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingParams(
+            MissingServletRequestParameterException ex, WebRequest request) {
+        ErrorResponse error = ErrorResponse.builder()
+            .code("MISSING_PARAMETER")
+            .message("Eksik parametre: " + ex.getParameterName())
+            .timestamp(LocalDateTime.now())
+            .path(request.getDescription(false).replace("uri=", ""))
+            .build();
+        return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST)
+            .body(ApiResponse.error(error));
     }
 }

@@ -1,4 +1,4 @@
-// config/SecurityConfig.java
+// config/SecurityConfig.java - UPDATED VERSION
 package com.healthvia.platform.config;
 
 import java.util.Arrays;
@@ -38,14 +38,23 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> 
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-.authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/v1/auth/**").permitAll()  // v1 path'i ekledik
-                .requestMatchers("/api/auth/**").permitAll()     // Eski path uyumluluk için
-                .requestMatchers("/api/v1/public/**").permitAll()
-                .requestMatchers("/api/public/**").permitAll()
-                .requestMatchers("/api/test/**").permitAll()     // Tüm test endpoint'leri
-                .requestMatchers("/error").permitAll()           // Error endpoint
-                .requestMatchers("/").permitAll()                // Root endpoint
+            .authorizeHttpRequests(auth -> auth
+                // ✅ UPDATED: More permissive for testing
+                .requestMatchers("/api/auth/**").permitAll()           // Authentication endpoints
+                .requestMatchers("/api/test/**").permitAll()           // Test endpoints  
+                .requestMatchers("/api/public/**").permitAll()         // Public endpoints
+                .requestMatchers("/api/*/public/**").permitAll()       // Any public sub-paths
+                .requestMatchers("/api/doctors/public/**").permitAll() // Doctor public search
+                .requestMatchers("/api/patients/public/**").permitAll()// Patient public info
+                .requestMatchers("/api/users/check-**").permitAll()    // Validation endpoints
+                .requestMatchers("/api/patients/check-**").permitAll() // Patient validation
+                .requestMatchers("/api/doctors/check-**").permitAll()  // Doctor validation
+                .requestMatchers("/error").permitAll()                 // Error pages
+                .requestMatchers("/").permitAll()                      // Root endpoint
+                .requestMatchers("/health").permitAll()                // Health check
+                .requestMatchers("/actuator/**").permitAll()           // Spring actuator
+                .requestMatchers("/swagger-ui/**").permitAll()         // Swagger UI (future)
+                .requestMatchers("/v3/api-docs/**").permitAll()        // OpenAPI docs (future)
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
@@ -67,6 +76,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
+        // ✅ UPDATED: More permissive for development/testing
         configuration.setAllowedOriginPatterns(Arrays.asList("*"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
